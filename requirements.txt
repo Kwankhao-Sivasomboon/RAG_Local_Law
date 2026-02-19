@@ -1,0 +1,11 @@
+langchain
+langchain-community
+langchain-chroma
+langchain-huggingface
+chromadb
+pandas
+pyarrow
+ollama
+sentence-transformers
+tqdm
+fpdf
