@@ -40,27 +40,43 @@ class Evaluator:
         self.judge_chain = self._create_judge_chain()
 
     def _create_judge_chain(self):
-        # Single Prompt Evaluation to save tokens
-        # We ask Llama 3.2 to act as a judge
-        template = """
-        คุณคือกรรมการตัดสินความถูกต้องของคำตอบ AI
+        # We ask the LLM to act as a judge in ENGLISH because small models follow format rules much better in English
+        self.judge_prompt = ChatPromptTemplate.from_template(
+            """You are a strict, highly pedantic, and impartial judge evaluating an AI assistant's answer for a Thai Law exam.
         
-        โจทย์:
-        - คำถาม: {question}
-        - คำตอบที่ถูกต้อง (Ground Truth): {ground_truth}
-        - คำตอบจาก AI (Prediction): {prediction}
-        
-        ภารกิจ:
-        เปรียบเทียบ "คำตอบจาก AI" กับ "คำตอบที่ถูกต้อง" ว่ามีใจความสำคัญตรงกันหรือไม่
-        - ไม่ต้องสนรูปแบบการเขียน ให้สนเนื้อหาความหมาย
-        - ถ้าคำตอบจาก AI ถูกต้องหรือใกล้เคียงมาก ให้ตอบ "PASS"
-        - ถ้าผิด หรือตอบไม่ตรงคำถาม ให้ตอบ "FAIL"
-        
-        ตอบเฉพาะคำว่า PASS หรือ FAIL เท่านั้น ห้ามอธิบายเพิ่ม
-        คำตอบ:
-        """
-        prompt = ChatPromptTemplate.from_template(template)
-        return prompt | self.llm_client.llm | StrOutputParser()
+Question: {question}
+Ground Truth (Correct Answer): {ground_truth}
+AI Model Prediction: {prediction}
+
+Task:
+Determine if the "AI Model Prediction" accurately matches the core facts of the "Ground Truth". You must NEVER hallucinate or invent agreement. If they differ on critical facts or logic, it MUST be a FAIL.
+
+EVALUATION CRITERIA:
+1. QUESTION TYPE: Understand whether this is a "Boolean (Yes/No/Can/Cannot)" question or a "Fact-based (Who/What/When/Which law/List)" question.
+2. FOR BOOLEAN QUESTIONS:
+   - Polarity MUST strongly match. "ได้" (Can) matches "ใช่" (Yes). "ไม่ได้" (Cannot) matches "ไม่ใช่" (No).
+   - If the AI answers with the correct polarity but introduces a contradictory condition (e.g. "Yes, but you need permission first" when the question asks if you can do it before getting permission), it is a FAIL.
+3. FOR FACT-BASED QUESTIONS (Who/What/When/Where):
+   - The specific key entities (e.g., the exact name of the law, the specific timeline, the exact ministry or entity) MUST substantively match.
+   - If the Ground Truth says "พระราชบัญญัติธุรกิจสถาบันการเงิน" and the AI says "พระราชบัญญัติการธนาคารพาณิชย์", this is wrong. Mark as FAIL.
+   - If the Ground Truth gives a specific timeline (e.g., "when announced in the Royal Gazette") and the AI gives a different one (e.g., "within 5 years"), Mark as FAIL.
+4. MISSING INFORMATION: If the AI states it does not have enough information ("ข้อมูลไม่เพียงพอ") but the Ground Truth has an answer, it is a FAIL.
+5. LENIENCY: Ignore missing section numbers (มาตรา) or extra polite words.
+
+INSTRUCTIONS:
+Step 1: Write a brief explanation of your reasoning (2-3 sentences). Explicitly state the key fact or polarity expected from the Ground Truth, and whether the AI provided that exact fact/polarity. Start with "Reason: "
+Step 2: On a new line, output strictly "Result: PASS" or "Result: FAIL".
+
+Example 1 (Fact Mismatch):
+Reason: The Ground Truth specifies the "Bank of Thailand" has authority, but the AI incorrectly states the "Ministry of Finance". The entities do not match.
+Result: FAIL
+
+Example 2 (Boolean Match):
+Reason: Both the Ground Truth and AI prediction agree that it is NOT allowed. The polarity and conditions match.
+Result: PASS
+"""
+        )
+        return self.judge_prompt | self.llm_client.llm | StrOutputParser()
 
     def load_test_data(self):
         files = glob.glob(TEST_DATA_PATTERN)
@@ -89,12 +105,13 @@ class Evaluator:
         print(f"Using Columns -> Question: '{col_question}', Answer: '{col_answer}'")
         
         # Sampling (Increase strictly if needed, keep small for quick validation)
-        sample_df = df.iloc[:5] # Test with first 5 rows first
+        sample_df = df.iloc[:10] # Test with first 10 rows
         results = []
+        correct = 0
 
         print(f"Starting Evaluation on {len(sample_df)} samples...")
         
-        for idx, row in tqdm(sample_df.iterrows(), total=len(sample_df)):
+        for idx, row in sample_df.iterrows():
             question = str(row[col_question])
             ground_truth = str(row[col_answer])
             
@@ -118,26 +135,16 @@ class Evaluator:
             for law in known_laws:
                 if law in question:
                     # Found a specific law mention!
-                    # We need to be careful with exact string matching in Chroma.
-                    # Usually 'title' field in metadata.
-                    # utilizing semantic search with filter is safer.
-                    # For now let's try to filter if we are sure.
-                    # But since titles might vary slightly (e.g. with B.E. year), 
-                    # strict equality filter might miss. 
-                    # Chroma supports $contains operator in newer versions? Or plain dict exact match.
-                    # Let's just rely on Semantic Search + BM25 (Hybrid) usually.
-                    # But User specifically asked for Metadata Filtering.
-                    # Let's try filtering by category if possible, or just pass query to enhanced retriever.
                     pass
             
             # Retrieve context (Enhanced Retriever handles logic)
-            # We can pass specific filters if we implement strict extraction logic later.
             docs = self.retriever.retrieve(question, filter_metadata=filter_meta)
             
             context_text = "\n\n".join([doc.page_content for doc in docs])
             
             # --- DEBUG: Print Retrieved Context ---
-            print(f"\n[DEBUG] Retrieved {len(docs)} docs:")
+            print(f"\n[DEBUG] Evaluated Q: {question}")
+            print(f"[DEBUG] Retrieved {len(docs)} docs:")
             for i, d in enumerate(docs[:3]): # Show top 3
                 print(f"  {i+1}. {d.page_content[:150]}...")
             print("-" * 30)
@@ -150,19 +157,36 @@ class Evaluator:
             
             # 2. Judge
             try:
-                score = self.judge_chain.invoke({
+                judge_output = self.judge_chain.invoke({
                     "question": question,
                     "ground_truth": ground_truth,
                     "prediction": prediction
                 }).strip()
+                
+                # Check for "Result: PASS" and "Result: FAIL"
+                if "Result: PASS" in judge_output.upper():
+                    score = "PASS"
+                elif "Result: FAIL" in judge_output.upper():
+                    score = "FAIL"
+                else:
+                    # Fallback manually parsing
+                    if "PASS" in judge_output.upper() and not "FAIL" in judge_output.upper():
+                        score = "PASS"
+                    else:
+                        score = "FAIL"
             except Exception as e:
+                judge_output = f"ERROR: {str(e)}"
                 score = "ERROR"
 
+            if score == "PASS":
+                correct += 1
+
             print(f"\n[Q]: {question}")
-            print(f"[GT]: {ground_truth[:100]}...")
-            print(f"[AI]: {prediction[:100]}...")
+            print(f"[GT]: {ground_truth}")
+            print(f"[AI]: {prediction}")
             print(f"[Result]: {score}")
-            print("-" * 30)
+            print(f"[Judge Reason]:\n{judge_output}")
+            print("-" * 30 + "\n")
 
             results.append({
                 "question": question,
@@ -172,7 +196,7 @@ class Evaluator:
             })
 
         # Summary
-        pass_count = sum(1 for r in results if "PASS" in r['result'].upper())
+        pass_count = correct
         total = len(results)
         if total > 0:
             print(f"\nEvaluation Complete!")

@@ -28,49 +28,130 @@ class Retriever:
         )
 
     def _get_bm25_retriever(self, docs):
-        """Builds a BM25 retriever from a list of documents."""
+        """Builds a Thai-aware BM25 retriever from a list of documents."""
         if not docs:
             return None
-        return BM25Retriever.from_documents(docs)
+        try:
+            from pythainlp.tokenize import word_tokenize
+            # ใช้ word_tokenize จาก PyThaiNLP เป็นฟังก์ชันตัดคำให้กับ BM25
+            return BM25Retriever.from_documents(docs, preprocess_func=word_tokenize)
+        except ImportError:
+            print("Warning: pythainlp not installed. Falling back to default split.")
+            return BM25Retriever.from_documents(docs)
 
     def retrieve(self, query, filter_metadata=None):
         """
-        Retrieves documents using Hybrid Search (Semantic + Keyword) with Filtering.
+        Retrieves documents using True Hybrid Search (RRF with Vector + Thai BM25).
         """
-        # 1. Semantic Search (Vector) - เพื่อดูความหมายโดยรวม
-        # เราดึงออกมาจำนวนหนึ่งก่อนเพื่อนำมาทำ BM25 เฉพาะกลุ่ม (เพื่อความเร็วและแม่นยำ)
-        core_vector_docs = self.core_db.similarity_search(query, k=15, filter=filter_metadata)
-        recent_vector_docs = self.recent_db.similarity_search(query, k=15, filter=filter_metadata)
+        # 0. Context Injection for Short/Vague Queries
+        search_query = query
+        generic_keywords = ["สถาบันการเงิน", "ธนาคาร", "พระราชบัญญัติ", "พ.ร.บ.", "เงินทุน", "เครดิต", "หลักทรัพย์"]
+        if not any(k in query for k in generic_keywords):
+            search_query = query + " (อ้างอิงพระราชบัญญัติธุรกิจสถาบันการเงินและธนาคารพาณิชย์)"
+
+        # 1. Semantic Search (Vector) - ดึงฐานข้อมูลมาเยอะขึ้นเพื่อให้แน่ใจว่าไม่พลาดมาตราสำคัญ
+        core_vector_docs = self.core_db.similarity_search(search_query, k=300, filter=filter_metadata)
+        recent_vector_docs = self.recent_db.similarity_search(search_query, k=50, filter=filter_metadata)
         all_vector_docs = core_vector_docs + recent_vector_docs
 
         if not all_vector_docs:
             return []
+            
+        # 1.5 Clean Up IAPP natural_text before BM25 processes it
+        import json
+        for doc in all_vector_docs:
+            if doc.page_content.strip().startswith('{"natural_text"'):
+                try:
+                    data = json.loads(doc.page_content)
+                    doc.page_content = data.get('natural_text', doc.page_content)
+                except Exception:
+                    pass
 
-        # 2. Keyword Search (BM25) - เพื่อเน้นเลขมาตรา หรือคำเฉพาะเจาะจง
-        # เราสร้าง BM25 จากกลุ่มเอกสารที่ Vector มองว่าน่าจะใช่ (Candidate Pool)
-        # วิธีนี้จะเร็วกว่าการทำ BM25 ทั้ง 4 แสนรายการ และช่วย Re-rank ผลลัพธ์ได้ดีมาก
-        bm25_retriever = self._get_bm25_retriever(all_vector_docs)
+        # 2. Extract Target Law for Hard Filtering
+        is_asking_which_law = any(phrase in query for phrase in ["กฎหมายใด", "กฎหมายฉบับใด", "พ.ร.บ. ใด", "พระราชบัญญัติใด"])
+        target_law = None
         
-        if bm25_retriever:
-            bm25_retriever.k = 8
-            vector_retriever = self.core_db.as_retriever(search_kwargs={"k": 8, "filter": filter_metadata})
-            ensemble = EnsembleRetriever(
-                retrievers=[bm25_retriever, vector_retriever],
-                weights=[0.5, 0.5]
-            )
-            raw_docs = ensemble.invoke(query)[:8]
-        else:
-            raw_docs = all_vector_docs[:8]
+        if not is_asking_which_law:
+            core_law_hints = [
+                "ธุรกิจสถาบันการเงิน", 
+                "ธุรกิจเงินทุน",
+                "หลักทรัพย์",
+                "ธนาคารแห่งประเทศไทย",
+                "ธนาคารออมสิน",
+                "สถาบันคุ้มครองเงินฝาก"
+            ]
+            for law in core_law_hints:
+                if law in query:
+                    target_law = law
+                    break
 
-        # 3. DYNAMIC TEXT REPAIR (The "Fast Patch")
-        # Replace the stale "มาตรา: ID:..." text with the correctly patched metadata
+        # HARD FILTERING (กำจัดเอกสารขยะ เช่น คดีล้มละลายที่บังเอิญติดมา)
+        if target_law:
+            strict_matched_docs = [doc for doc in all_vector_docs if target_law in doc.metadata.get('title', '')]
+            # ถ้ามีเอกสารที่ตรงกับชื่อกฎหมายที่ถามจริงๆ ให้ใช้เฉพาะกลุ่มนี้เท่านั้น ห้ามเอาขยะมาปน
+            if len(strict_matched_docs) > 0:
+                all_vector_docs = strict_matched_docs
+        
+        # 3. Thai-Aware BM25 Reranking & Reciprocal Rank Fusion (RRF)
+        vector_ranks = {doc.page_content: i for i, doc in enumerate(all_vector_docs)}
+        
+        bm25_retriever = self._get_bm25_retriever(all_vector_docs)
+        if bm25_retriever:
+            bm25_retriever.k = len(all_vector_docs)
+            bm25_docs = bm25_retriever.invoke(query)
+            bm25_ranks = {doc.page_content: i for i, doc in enumerate(bm25_docs)}
+        else:
+            bm25_ranks = vector_ranks
+
+        # Calculate RRF Score
+        scores = {}
+        for doc in all_vector_docs:
+            content = doc.page_content
+            vr = vector_ranks.get(content, 1000)
+            br = bm25_ranks.get(content, 1000)
+            
+            # RRF formula: 1 / (60 + rank) 
+            score = (1.0 / (60 + vr)) + (1.0 / (60 + br))
+            
+            # Soft boost กรณีไม่มี Hard Filtering
+            if target_law and target_law in doc.metadata.get('title', ''):
+                score *= 1.5
+                
+            scores[content] = score
+
+        # เรียงลำดับตามคะแนน RRF ที่คำนวณได้
+        best_contents = sorted(scores.keys(), key=lambda k: scores[k], reverse=True)
+        
+        # 4. DYNAMIC TEXT REPAIR & CLEANUP
+        seen_content = set()
         fixed_docs = []
-        for doc in raw_docs:
+        import re
+        for content in best_contents:
+            if len(fixed_docs) >= 5: # ลดจำนวนลงให้แม่นยำขึ้น เอาแค่ 5 อันดับแรกเพื่อลด Noise
+                break
+                
+            # หาเอกสารต้นฉบับ
+            doc = next(d for d in all_vector_docs if d.page_content == content)
+            
             if 'section_id' in doc.metadata:
                 new_label = doc.metadata['section_id']
-                # Search and replace "มาตรา: ID:XXXXXX" or "มาตรา: ID:Unknown"
-                import re
-                doc.page_content = re.sub(r'มาตรา:\s*ID:[a-zA-Z0-9_]+', f'มาตรา: {new_label}', doc.page_content)
-            fixed_docs.append(doc)
+                if str(new_label).startswith("ID:"):
+                    doc.page_content = re.sub(r'มาตรา:\s*ID:[a-zA-Z0-9_]+\n', '', doc.page_content)
+                else:
+                    doc.page_content = re.sub(r'มาตรา:\s*ID:[a-zA-Z0-9_]+', f'มาตรา: {new_label}', doc.page_content)
+            
+            # Ensure the title is absolutely glued to the text so the LLM doesn't hallucinate
+            law_title = doc.metadata.get('title', 'ไม่ได้ระบุชื่อกฎหมาย')
+            clean_text = doc.page_content.strip()
+            
+            # If the text somehow doesn't have the title physically in the string, prepend it
+            if "กฎหมาย: " not in clean_text:
+                clean_text = f"กฎหมาย: {law_title}\n{clean_text}"
+                
+            doc.page_content = clean_text
+
+            if clean_text not in seen_content:
+                seen_content.add(clean_text)
+                fixed_docs.append(doc)
             
         return fixed_docs

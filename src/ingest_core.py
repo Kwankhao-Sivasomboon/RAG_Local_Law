@@ -47,16 +47,24 @@ def ingest_core_law():
                         content = sec.get('content', '').strip()
                         if not content: continue
                         
-                        # Fix Label: Find 'มาตรา X' from content text
-                        match = re.search(r'(มาตรา\s*[0-9๑-๙\./]+)', content)
-                        section_label = match.group(1).strip() if match else f"ID:{sec.get('sectionId')}"
+                        # Foolproof Labeling: Get 'sectionNo' directly if available
+                        section_no = sec.get('sectionNo')
+                        if section_no:
+                            section_label = f"มาตรา {section_no}"
+                        else:
+                            # Fallback if sectionNo is not present
+                            match = re.search(r'(มาตรา\s*[0-9๑-๙\./]+)', content)
+                            section_label = match.group(1).strip() if match else ""
                         
-                        full_text = f"กฎหมาย: {title}\nมาตรา: {section_label}\nเนื้อหา: {content}"
+                        if section_label:
+                            full_text = f"กฎหมาย: {title}\nส่วนของ: {section_label}\nเนื้อหา: {content}"
+                        else:
+                            full_text = f"กฎหมาย: {title}\nเนื้อหา: {content}"
                         
                         metadata = {
                             "source": "ocs-krisdika",
                             "title": title,
-                            "section_id": section_label,
+                            "section_id": section_label if section_label else "ส่วนเนื้อหา",
                         }
                         documents.append(Document(page_content=full_text, metadata=metadata))
         except Exception:
