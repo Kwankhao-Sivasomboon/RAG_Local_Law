@@ -12,6 +12,7 @@ class LLMClient:
         )
         
         # System prompt for Thai Law Expert
+        # System prompt for Thai Law Expert
         template = """
         คุณคือผู้เชี่ยวชาญด้านกฎหมายไทย หน้าที่ของคุณคือตอบคำถามให้ตรงประเด็น สั้นกระชับ และถูกต้องที่สุด
         
