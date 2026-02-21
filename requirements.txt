@@ -1,11 +1,21 @@
+--extra-index-url https://download.pytorch.org/whl/cu118
+torch==2.4.1+cu118
+torchvision==0.19.1+cu118
+torchaudio==2.4.1+cu118
+numpy<2.0.0
 langchain
 langchain-community
 langchain-chroma
 langchain-huggingface
-chromadb
+langchain-ollama
+chromadb>=1.5.0
+sentence-transformers
+transformers
+onnxruntime
+huggingface_hub
 pandas
 pyarrow
-ollama
-sentence-transformers
 tqdm
 fpdf
+chardet
+datasets

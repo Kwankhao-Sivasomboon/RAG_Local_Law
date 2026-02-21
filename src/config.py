@@ -7,7 +7,8 @@ DATASETS_DIR = os.path.join(PROJECT_ROOT, "datasets")
 DB_DIR = os.path.join(PROJECT_ROOT, "chroma_db")
 
 # Files
-CORE_LAW_FILE = os.path.join(DATASETS_DIR, "thailaw-v1.0.csv")
+# Files
+# CORE_LAW is now fetched from Hugging Face "open-law-data-thailand/ocs-krisdika"
 RECENT_LAW_DIR = os.path.join(DATASETS_DIR, "iapp_2025")
 
 # Models
