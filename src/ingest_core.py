@@ -65,31 +65,28 @@ def ingest_core_law():
                     title = data.get('title', 'Unknown')
                     hierarchy_level, unit_type = get_hierarchy_metadata(title)
                     sections = data.get('sections', [])
+                    publish_date = data.get('publish_date', '')
+                    reference_url = data.get('reference_url', '')
+                    category = data.get('category', '')
                     
                     for sec in sections:
                         content = sec.get('content', '').strip()
                         if not content: continue
                         
-                        # Foolproof Labeling: Get 'sectionNo' directly if available
-                        section_no = sec.get('sectionNo')
-                        if section_no:
-                            section_label = f"{unit_type} {section_no}"
-                        else:
-                            # Fallback if sectionNo is not present
-                            pattern = r'((?:มาตรา|ข้อ)\s*[0-9๑-๙\./]+(?:\s*(?:ทวิ|ตรี|จัตวา|เบญจ|ฉ|สัตต|อัฐ|นพ))?)'
-                            match = re.search(pattern, content)
-                            section_label = match.group(1).strip() if match else ""
+                        # ใช้ Regex ควานหาชื่อ มาตรา/ข้อ จากเนื้อหาโดยตรง เพื่อเลี่ยงการดึง sectionId (int) ผิดๆ มาใช้
+                        pattern = r'((?:มาตรา|ข้อ)\s*[0-9๑-๙ก-ฮ\./]+(?:\s*(?:ทวิ|ตรี|จัตวา|เบญจ|ฉ|สัตต|อัฐ|นพ))?)'
+                        match = re.search(pattern, content)
+                        section_label = match.group(1).strip() if match else ""
                         
                         chunks = text_splitter.split_text(content)
                         for j, chunk in enumerate(chunks):
                             if section_label:
                                 chunk_header = f"กฎหมาย: {title}\nส่วนของ: {section_label}"
-                                if len(chunks) > 1:
-                                    chunk_header += f" (ส่วนที่ {j+1}/{len(chunks)})"
                             else:
                                 chunk_header = f"กฎหมาย: {title}"
-                                if len(chunks) > 1:
-                                    chunk_header += f" (ส่วนที่ {j+1}/{len(chunks)})"
+                            
+                            if len(chunks) > 1:
+                                chunk_header += f" (ส่วนที่ {j+1}/{len(chunks)})"
                                 
                             full_text = f"{chunk_header}\nเนื้อหา: {chunk.strip()}"
                             
@@ -99,6 +96,9 @@ def ingest_core_law():
                                 "section_id": section_label if section_label else "ส่วนเนื้อหา",
                                 "unit_type": unit_type,
                                 "hierarchy_level": hierarchy_level,
+                                "publish_date": publish_date,
+                                "reference_url": reference_url,
+                                "category": category
                             }
                             documents.append(Document(page_content=full_text, metadata=metadata))
         except Exception:

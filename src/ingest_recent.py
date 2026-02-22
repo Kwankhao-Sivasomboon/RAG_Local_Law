@@ -67,8 +67,8 @@ def load_jsonl_files(directory):
                         full_content = full_content.strip()
                         if not full_content: continue
                         
-                        # Support "มาตรา", "ข้อ", and their extensions (ทวิ, ตรี, etc.)
-                        pattern = r'((?:มาตรา|ข้อ)\s+[0-9๑-๙\d/]+(?:\s*(?:ทวิ|ตรี|จัตวา|เบญจ|ฉ|สัตต|อัฐ|นพ))?)'
+                        # Support "มาตรา", "ข้อ", and their extensions (ทวิ, ตรี, ก, ฮ, etc.)
+                        pattern = r'((?:มาตรา|ข้อ)\s*[0-9๑-๙ก-ฮ\d\./]+(?:\s*(?:ทวิ|ตรี|จัตวา|เบญจ|ฉ|สัตต|อัฐ|นพ))?)'
                         sections = re.split(pattern, full_content)
                         
                         if len(sections) > 1:
