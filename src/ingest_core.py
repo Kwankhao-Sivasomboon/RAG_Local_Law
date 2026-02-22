@@ -7,6 +7,22 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.schema import Document
 from tqdm import tqdm
 from huggingface_hub import snapshot_download
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+
+def get_hierarchy_metadata(title):
+    title_lower = title.lower()
+    if "รัฐธรรมนูญ" in title_lower:
+        return 1, "มาตรา"
+    elif "พระราชบัญญัติ" in title_lower or "พ.ร.บ." in title_lower or "พระราชกำหนด" in title_lower or "พ.ร.ก." in title_lower:
+        return 2, "มาตรา"
+    elif "พระราชกฤษฎีกา" in title_lower or "พ.ร.ฎ." in title_lower:
+        return 3, "มาตรา"
+    elif "กฎกระทรวง" in title_lower:
+        return 4, "ข้อ"
+    elif "ประกาศ" in title_lower or "ระเบียบ" in title_lower or "คำสั่ง" in title_lower:
+        return 5, "ข้อ"
+    else:
+        return 2, "มาตรา" # Default for unknown Structural laws
 
 def ingest_core_law():
     print("Starting Ingestion (Filter: Year 2500+ AND is_latest only)...")
@@ -31,6 +47,12 @@ def ingest_core_law():
     documents = []
     print(f"Processing {len(all_files)} filtered files...")
     
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=config.CHUNK_SIZE,
+        chunk_overlap=config.CHUNK_OVERLAP,
+        separators=["\n\n", "\n", " ", ""]
+    )
+    
     for file_path in tqdm(all_files):
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -41,6 +63,7 @@ def ingest_core_law():
                     if not data.get('is_latest', False): continue 
                     
                     title = data.get('title', 'Unknown')
+                    hierarchy_level, unit_type = get_hierarchy_metadata(title)
                     sections = data.get('sections', [])
                     
                     for sec in sections:
@@ -50,23 +73,34 @@ def ingest_core_law():
                         # Foolproof Labeling: Get 'sectionNo' directly if available
                         section_no = sec.get('sectionNo')
                         if section_no:
-                            section_label = f"มาตรา {section_no}"
+                            section_label = f"{unit_type} {section_no}"
                         else:
                             # Fallback if sectionNo is not present
-                            match = re.search(r'(มาตรา\s*[0-9๑-๙\./]+)', content)
+                            pattern = r'((?:มาตรา|ข้อ)\s*[0-9๑-๙\./]+(?:\s*(?:ทวิ|ตรี|จัตวา|เบญจ|ฉ|สัตต|อัฐ|นพ))?)'
+                            match = re.search(pattern, content)
                             section_label = match.group(1).strip() if match else ""
                         
-                        if section_label:
-                            full_text = f"กฎหมาย: {title}\nส่วนของ: {section_label}\nเนื้อหา: {content}"
-                        else:
-                            full_text = f"กฎหมาย: {title}\nเนื้อหา: {content}"
-                        
-                        metadata = {
-                            "source": "ocs-krisdika",
-                            "title": title,
-                            "section_id": section_label if section_label else "ส่วนเนื้อหา",
-                        }
-                        documents.append(Document(page_content=full_text, metadata=metadata))
+                        chunks = text_splitter.split_text(content)
+                        for j, chunk in enumerate(chunks):
+                            if section_label:
+                                chunk_header = f"กฎหมาย: {title}\nส่วนของ: {section_label}"
+                                if len(chunks) > 1:
+                                    chunk_header += f" (ส่วนที่ {j+1}/{len(chunks)})"
+                            else:
+                                chunk_header = f"กฎหมาย: {title}"
+                                if len(chunks) > 1:
+                                    chunk_header += f" (ส่วนที่ {j+1}/{len(chunks)})"
+                                
+                            full_text = f"{chunk_header}\nเนื้อหา: {chunk.strip()}"
+                            
+                            metadata = {
+                                "source": "ocs-krisdika",
+                                "title": title,
+                                "section_id": section_label if section_label else "ส่วนเนื้อหา",
+                                "unit_type": unit_type,
+                                "hierarchy_level": hierarchy_level,
+                            }
+                            documents.append(Document(page_content=full_text, metadata=metadata))
         except Exception:
             continue
 

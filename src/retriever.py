@@ -135,10 +135,11 @@ class Retriever:
             
             if 'section_id' in doc.metadata:
                 new_label = doc.metadata['section_id']
+                unit = doc.metadata.get("unit_type", "มาตรา")
                 if str(new_label).startswith("ID:"):
-                    doc.page_content = re.sub(r'มาตรา:\s*ID:[a-zA-Z0-9_]+\n', '', doc.page_content)
+                    doc.page_content = re.sub(r'(?:มาตรา|ข้อ):\s*ID:[a-zA-Z0-9_]+\n', '', doc.page_content)
                 else:
-                    doc.page_content = re.sub(r'มาตรา:\s*ID:[a-zA-Z0-9_]+', f'มาตรา: {new_label}', doc.page_content)
+                    doc.page_content = re.sub(r'(?:มาตรา|ข้อ):\s*ID:[a-zA-Z0-9_]+', f'{unit}: {new_label}', doc.page_content)
             
             # Ensure the title is absolutely glued to the text so the LLM doesn't hallucinate
             law_title = doc.metadata.get('title', 'ไม่ได้ระบุชื่อกฎหมาย')
