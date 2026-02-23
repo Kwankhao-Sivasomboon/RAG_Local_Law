@@ -110,20 +110,25 @@ def ingest_core_law():
         print("No documents found!")
         return
 
-    # 2. Ingest to ChromaDB (Original Way - No Manual Batching)
+    # 2. Ingest to ChromaDB (Manual Batching to prevent HNSW corruption)
     print(f"Initializing Embeddings and Vector DB...")
     embeddings = HuggingFaceEmbeddings(model_name=config.EMBEDDING_MODEL_NAME)
     
-    # Let LangChain & Chroma handle the batching internally like before
-    print(f"Adding {len(documents)} documents to ChromaDB. This will take some time...")
-    
-    vectorstore = Chroma.from_documents(
-        documents=documents,
-        embedding=embeddings,
+    vectorstore = Chroma(
         collection_name=config.COLLECTION_CORE,
+        embedding_function=embeddings,
         persist_directory=config.DB_DIR
     )
     
+    import time
+    batch_size = 500
+    print(f"Adding {len(documents)} documents to ChromaDB in batches of {batch_size}...")
+    
+    for i in tqdm(range(0, len(documents), batch_size), desc="Indexing Batches"):
+        batch = documents[i:i + batch_size]
+        vectorstore.add_documents(batch)
+        time.sleep(0.5) # ชะลอให้ SQLite ค่อยๆ บันทึกไฟล์ .bin ลงฮาร์ดดิสก์ให้ทัน ไม่ให้พัง
+        
     print("--- Core Ingestion Success! ---")
 
 if __name__ == "__main__":

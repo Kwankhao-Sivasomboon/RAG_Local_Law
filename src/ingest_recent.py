@@ -142,12 +142,15 @@ def ingest_recent_law():
         persist_directory=config.DB_DIR
     )
     
-    batch_size = 100
-    for i in tqdm(range(0, len(docs), batch_size)):
+    import time
+    batch_size = 500
+    print(f"Adding {len(docs)} documents to ChromaDB in batches of {batch_size}...")
+    for i in tqdm(range(0, len(docs), batch_size), desc="Indexing Batches"):
         batch = docs[i:i+batch_size]
         vectorstore.add_documents(documents=batch)
+        time.sleep(0.5) # ชะลอให้ SQLite เขียนไฟล์ลงฮาร์ดดิสก์ให้ทัน
         
-    print("Ingestion complete.")
+    print("--- Recent Ingestion Success! ---")
 
 if __name__ == "__main__":
     ingest_recent_law()

@@ -35,6 +35,7 @@ class Evaluator:
     def __init__(self):
         print("Initializing RAG Components...")
         self.retriever = Retriever()
+        
         self.llm_client = LLMClient() # Using the same LLM for generation
         # We need a separate judge chain (can use same model but different prompt)
         self.judge_chain = self._create_judge_chain()
