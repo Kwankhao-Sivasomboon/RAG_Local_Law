@@ -127,7 +127,7 @@ class Retriever:
         fixed_docs = []
         import re
         for content in best_contents:
-            if len(fixed_docs) >= 5: # ลดจำนวนลงให้แม่นยำขึ้น เอาแค่ 5 อันดับแรกเพื่อลด Noise
+            if len(fixed_docs) >= config.RETRIEVAL_K: # ลดจำนวนลงให้แม่นยำขึ้น เอาแค่ 5 อันดับแรกเพื่อลด Noise
                 break
                 
             # หาเอกสารต้นฉบับ

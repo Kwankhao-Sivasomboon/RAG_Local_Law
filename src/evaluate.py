@@ -43,42 +43,30 @@ class Evaluator:
     def _create_judge_chain(self):
         # We ask the LLM to act as a judge in ENGLISH because small models follow format rules much better in English
         self.judge_prompt = ChatPromptTemplate.from_template(
-            """You are an expert, highly pedantic, and impartial judge evaluating an AI assistant's answer for a Thai Law exam.
+            """You are a strict and impartial judge scoring an AI's answer.
         
 Question: {question}
-Ground Truth (Correct Answer): {ground_truth}
+Ground Truth (The Correct Answer): {ground_truth}
 AI Model Prediction: {prediction}
 
 Task:
-Determine if the "AI Model Prediction" accurately matches the core logic and facts of the "Ground Truth". You must NEVER hallucinate or invent agreement or disagreement. Read the AI's answer carefully.
+Compare the "AI Model Prediction" to the "Ground Truth". Does the AI's final conclusion (สรุป) match the Ground Truth's core meaning?
 
-EVALUATION CRITERIA:
-1. QUESTION TYPE: Is this a "Boolean (Yes/No/Can/Cannot)" question or a "Fact-based (Who/What/When/List)" question?
-2. FOR BOOLEAN QUESTIONS:
-   - Polarity MUST strongly match. "ได้" (Can) matches "ใช่" (Yes). "ไม่ได้" (Cannot) matches "ไม่ใช่" (No).
-   - If the AI answers with a positive word but introduces a contradictory condition (e.g. "Yes, but you need permission first" when the question asks if you can do it BEFORE getting permission), it MUST be a FAIL.
-3. FOR FACT-BASED QUESTIONS (Who/What/When/Where):
-   - Check if the key entities in the Ground Truth (e.g., exact law names, timelines, government ministries like 'ธนาคารแห่งประเทศไทย') appear in the AI Prediction.
-   - If the AI includes the correct entities and conclusion, give it a PASS. Do not fail it just because the phrasing is different.
-   - If the AI explicitly provides an incorrect entity or timeline, give it a FAIL.
-4. MISSING INFORMATION: If the AI states it does not have enough information ("ข้อมูลไม่เพียงพอ") but the Ground Truth has an answer, it is a FAIL.
-5. LENIENCY: Ignore missing section numbers (มาตรา) or extra polite words.
+RULES:
+1. Synonyms are a PASS. "ไม่ได้" (Cannot) perfectly matches "ไม่สามารถทำได้", "ไม่อนุญาต", or "ไม่ให้อยู่ภายใต้บังคับ". They all mean the same negative polarity.
+2. If the AI says "ข้อมูลไม่เพียงพอ" (Not enough info), it is a FAIL because it failed to find the answer that exists in the Ground Truth.
+3. If both AI and Ground Truth agree on the final permission (e.g. they both say "No"), it is a PASS, even if the wording is slightly different.
 
 INSTRUCTIONS:
-You must structure your response EXACTLY as follows:
-Quote: <Highlight the specific core answer from the AI Prediction>
-Reason: <Write a 1-2 sentence explanation comparing the Quote to the Ground Truth's core fact or polarity. If the reasoning says they agree, the result MUST be PASS.>
-Result: <Exactly "PASS" or "FAIL">
+Output EXACTLY 3 lines:
+Quote: <the final conclusion from the AI, e.g., สรุป: ไม่ได้>
+Reason: <brief explanation of why they agree or disagree>
+Result: <PASS or FAIL>
 
 Example 1:
-Quote: "ใช่ บริษัทที่มีหุ้นเกินกว่าร้อยละห้าสิบมีสิทธิควบคุม"
-Reason: The AI explicitly states the company can control it if it holds more than 50%, which perfectly matches the Ground Truth.
+Quote: สรุป: ไม่ได้
+Reason: The AI says 'ไม่ได้', which means the same as the Ground Truth's 'ไม่สามารถทำได้'. They agree.
 Result: PASS
-
-Example 2:
-Quote: "ใช่ สามารถใช้ได้ แต่ต้องได้รับใบอนุญาตก่อน"
-Reason: The AI says "Yes", but adds the condition "requires permission first". The Ground Truth says "No" because they don't have the license yet. This is contradictory.
-Result: FAIL
 """
         )
         return self.judge_prompt | self.llm_client.llm | StrOutputParser()
