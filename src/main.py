@@ -1,4 +1,4 @@
-from retriever import ThaiLawRetriever
+from retriever import Retriever
 from llm_client import LLMClient
 import warnings
 
@@ -11,7 +11,7 @@ def main():
     print("----------------------------------------------------------------")
     
     try:
-        retriever = ThaiLawRetriever()
+        retriever = Retriever()
         llm_client = LLMClient()
     except Exception as e:
         print(f"\nError initializing system: {e}")

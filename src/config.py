@@ -22,3 +22,8 @@ COLLECTION_RECENT = "recent_law"
 CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 200
 RETRIEVAL_K = 5
+
+# Evaluation
+TEST_DATA_PATTERN = os.path.join(DATASETS_DIR, "test-*.parquet")
+EVAL_SAMPLE_SIZE = 10
+
