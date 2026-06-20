@@ -1,253 +1,139 @@
-# Yourhome Core AI & Automation Infrastructure
+# Thai Law RAG (Retrieval-Augmented Generation) System
 
 [![Python Version](https://img.shields.io/badge/Python-3.11%2B-blue?logo=python&logoColor=white)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
-[![Gemini](https://img.shields.io/badge/Gemini-1.5%20Pro%20%2F%20Flash-orange?logo=google&logoColor=white)](https://deepmind.google/technologies/gemini/)
-[![Docker](https://img.shields.io/badge/Docker-Supported-blue?logo=docker&logoColor=white)](https://www.docker.com)
-[![Playwright](https://img.shields.io/badge/Playwright-Automated-green?logo=playwright&logoColor=white)](https://playwright.dev)
-[![License](https://img.shields.io/badge/License-Proprietary-red)](#)
+[![LangChain](https://img.shields.io/badge/LangChain-Supported-green?logo=langchain&logoColor=white)](https://github.com/langchain-ai/langchain)
+[![Ollama](https://img.shields.io/badge/Ollama-llama3.2-orange?logo=ollama&logoColor=white)](https://ollama.com)
+[![VectorDB](https://img.shields.io/badge/ChromaDB-v1.5%2B-blue?logo=database&logoColor=white)](https://github.com/chroma-core/chroma)
 
-A production-grade, enterprise-scale AI and automation core powering the **Yourhome** real-estate platform. This infrastructure automates unstructured property data ingestion, enables multi-modal natural language search, conducts image-based computer vision analytics, performs localized legal RAG analysis, and runs automated BI data warehousing and programmatic QA fuzzing pipelines.
-
-Designed for developers, AI engineers, and DevOps teams to orchestrate and scale intelligent property services.
+A localized, high-precision retrieval-augmented generation (RAG) system for Thai legal question-answering. This repository is specifically optimized to perform hybrid semantic-lexical searches over core and recent Thai legislation datasets, run local LLM generation using **Ollama (`llama3.2`)**, and perform programmatic evaluations using LLM-as-a-judge methodologies on Hugging Face test sets.
 
 ---
 
-## 🏗️ System Architecture
-
-The following diagram illustrates the data flows, agent lifecycles, and backend integrations across the Yourhome Core infrastructure:
-
-```mermaid
-graph TD
-    %% Styling
-    classDef ai fill:#f0f4c3,stroke:#827717,stroke-width:2px;
-    classDef storage fill:#efebe9,stroke:#5d4037,stroke-width:2px;
-    classDef api fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
-    classDef client fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;
-    
-    subgraph Data Sources
-        WebPlatform[Listing Platforms]
-        ThaiLegal[Thai Legal Datasets]
-        Images[Property Images]
-    end
-
-    subgraph Agentic ETL & Ingestion
-        Playwright[Playwright Scraping Agent] -->|HTML/Metadata| GeminiParser[Gemini Parser LLM]
-        Playwright -->|Cookies/Sessions| AuthKeeper[Session Persistence Manager]
-    end
-    WebPlatform --> Playwright
-
-    subgraph Computer Vision
-        Images --> YOLO[YOLO11 & CV Analytics]
-        YOLO -->|Color & Interior Matrix| Normalizer[Data Normalization]
-    end
-
-    subgraph Backend & Search Engine
-        API[FastAPI Gateway] -->|Voice/Text Query| LLMExtractor[Gemini/Grok Parameter Extractor]
-        LLMExtractor -->|Pydantic Structured Output| DBParams[Deterministic Search Params]
-    end
-
-    subgraph RAG System
-        ThaiLegal -->|Hybrid Chunking & Metadata| VectorDB[(ChromaDB / Vector Search)]
-        VectorDB -->|Context Retrieval| RAG[Legal Compliance RAG Engine]
-        RAG -->|Ground Truth Verification| API
-    end
-
-    subgraph Storage & BI
-        GeminiParser --> Normalizer
-        Normalizer --> DBs[(Firestore / PostgreSQL / Supabase)]
-        DBParams --> DBs
-        DBs -->|SSH Tunnel| BI[Ubuntu SSH Tunnel + GSC / BI Analytics]
-    end
-    
-    class GeminiParser,LLMExtractor,RAG,YOLO ai;
-    class DBs,VectorDB storage;
-    class API,Playwright api;
-```
-
----
-
-## 🌟 Core Features
-
-### 1. Autonomous AI ETL & Knowledge Ingestion Agent
-*   **Session-Persisted Aggregation:** Orchestrates Playwright browser automation with persistent session and cookie management to navigate past authentication blocks on major listing platforms.
-*   **LLM-Powered Data Normalization:** Uses Gemini 1.5 models to parse highly unstructured, free-form property description texts, translating them into highly deterministic, structured database-friendly JSON schemas.
-
-### 2. Computer Vision Analytics
-*   **YOLO11 Model Pipeline:** Analyzes property images to automatically identify structural layouts, room types, and aesthetic quality.
-*   **Design & Color Matrix Extraction:** Extracts dominant color palettes (RGB/HEX) and interior design profiles to automatically tag and index listings.
-
-### 3. Intelligent Search & Extraction Engine
-*   **Natural Language to Parameters (NL2Params):** FastAPI endpoint processing voice or text inputs.
-*   **Deterministic Parameter Mapping:** Combines LLMs (Gemini/Grok) with Pydantic Structured Outputs and custom regular expressions to extract clean filters (e.g., price ranges, location, bedroom counts) from conversational queries.
-
-### 4. Legal Compliance RAG System
-*   **Hallucination Mitigation:** Retrieval-Augmented Generation (RAG) system utilizing localized Thai legal datasets to answer real-estate-specific regulatory and transactional queries.
-*   **Hybrid Chunking & Retrieval:** Combines semantic Vector search (ChromaDB/Supabase) with keyword search (BM25 tokenized by PyThaiNLP) for maximum accuracy.
-
-### 5. Data-Driven BI Analytics
-*   **Automated Ubuntu SSH Tunnels:** Programmatically opens secure tunnels connecting AWS RDS production databases with Google Search Console.
-*   **User Lifecycle Tracking:** Direct automated ingestion loops mapping search console clicks, user acquisition channels, and registration drop-offs.
-
-### 6. Automated QA Pipeline
-*   **Programmatic Fuzz & Logic Testing:** Fuzzing bot that systematically hits API endpoints with extreme boundaries and mock schemas.
-*   **Regression Prevention:** Automated test assertions evaluating downstream data consistency and security checks across database layers.
-
----
-
-## 🛠️ Tech Stack & Infrastructure Checklist
-
-| Component | Technology | Role in System | Status |
-| :--- | :--- | :--- | :---: |
-| **Core Language** | Python 3.11+ | Implements clean code, Pydantic type safety, and core scripts. | `[x]` Enforced |
-| **API Gateway** | FastAPI | Hosts low-latency search endpoints, ingestion hooks, and RAG routes. | `[x]` Enforced |
-| **AI Models** | Gemini 1.5 Flash / Pro | Powers description parsing, prompt-based extraction, and RAG. | `[x]` Enforced |
-| **Alternative LLM** | Grok | Fallback/parallel extractor for search query processing. | `[x]` Configured |
-| **Computer Vision** | YOLO11 | Processes property images to extract room categories and styles. | `[x]` Enforced |
-| **Browser Driver** | Playwright | Executes headless scraping tasks with cookie/session persistence. | `[x]` Enforced |
-| **Vector Database** | ChromaDB / Supabase | Houses legal embeddings and property embeddings for semantic query matching. | `[x]` Enforced |
-| **Relational Database**| PostgreSQL (AWS RDS)| Acts as the production transactional database and core BI data source. | `[x]` Enforced |
-| **NoSQL Database** | Firestore | Stores unstructured listing schemas and temporary scraper metadata. | `[x]` Enforced |
-| **Data Integration** | Google Sheets API | Serves as an output sink for automated reports and analytics dashboards. | `[x]` Enforced |
-| **Orchestration** | Google Cloud Scheduler| Triggers ETL tasks, BI synchronizations, and QA fuzzers on cron jobs. | `[x]` Enforced |
-| **Infrastructure** | Docker | Containers for FastAPI, agents, and worker processes. | `[x]` Configured |
-| **Cloud Hosting** | GCP Cloud Run | Hosts serverless FastAPI and background worker microservices. | `[x]` Configured |
-| **Network Security** | Linux SSH Tunnels | Securely connects AWS RDS databases to isolated BI metrics collectors. | `[x]` Enforced |
-
----
-
-## 🔑 Environment Variables Template
-
-Create a `.env` file in the root directory using this template:
-
-```ini
-# ==============================================================================
-# Yourhome Core AI & Automation Infrastructure - Environment Configuration
-# ==============================================================================
-
-# FastAPI Server Settings
-HOST=0.0.0.0
-PORT=8000
-ENV=development # production, staging, development
-
-# Core AI API Keys
-GEMINI_API_KEY=your_gemini_api_key_here
-GROK_API_KEY=your_grok_api_key_here
-
-# Scraping & Automation Configs
-PLAYWRIGHT_HEADLESS=true
-COOKIE_SESSION_PATH=./src/agents/sessions/cookie_state.json
-SCRAPER_MAX_CASES=50
-SCRAPER_DELAY_SEC=3
-
-# Databases & Vector Stores
-FIRESTORE_PROJECT_ID=your_firestore_project_id
-FIRESTORE_CREDENTIALS_PATH=./secrets/firestore-service-account.json
-
-POSTGRES_HOST=your-rds-endpoint.amazonaws.com
-POSTGRES_PORT=5432
-POSTGRES_DB=yourhome_prod
-POSTGRES_USER=db_user
-POSTGRES_PASSWORD=secure_password_here
-
-SUPABASE_URL=https://your-supabase-project.supabase.co
-SUPABASE_KEY=your_supabase_anon_or_service_role_key
-VECTOR_COLLECTION_NAME=property_legal_vectors
-
-# BI & Integrations
-GOOGLE_APPLICATION_CREDENTIALS=./secrets/google-bi-service-account.json
-GOOGLE_SHEETS_SPREADSHEET_ID=your_spreadsheet_id_for_reports
-GSC_SITE_URL=https://yourhome.com
-
-# SSH Tunnel for RDS Connection
-SSH_TUNNEL_HOST=your-ubuntu-bastion-ip
-SSH_TUNNEL_PORT=22
-SSH_TUNNEL_USER=ubuntu
-SSH_TUNNEL_KEY_PATH=./secrets/bastion-key.pem
-
-# Automated QA & Fuzzing
-TEST_ENDPOINT_URL=http://localhost:8000
-QA_FUZZER_API_KEY=internal_qa_security_token
-```
+## 🎯 Project Objective
+The goal of this project is to provide strictly accurate, hallucination-free answers to Thai legal queries. It solves standard RAG challenges (like vocabulary mismatches, document fragmentation, and domain-specific terms) by implementing a custom **True Hybrid Retriever** with **Reciprocal Rank Fusion (RRF)**, query expansion, and structural metadata filters.
 
 ---
 
 ## 📂 Directory Structure
 
-Below is the repository's logical layout optimized for modular AI agents, clean services separation, and scale:
+Below is the workspace layout. Every major python module has clickable links for easy navigation:
 
 ```
+├── chroma_db/                  # Local SQLite and vector index files generated upon ingestion
+├── datasets/                   # Storage for Parquet test/train datasets and raw JSONL laws
+│   ├── test-00000-of-00001.parquet
+│   └── train-00000-of-00001.parquet
 ├── src/
-│   ├── agents/          # AI Agents, Prompt Engineering, RAG & LLM logic
-│   ├── room_analyzer/   # Computer Vision, Image quality & Color detector scripts
-│   ├── services/        # Database connectors (Firestore, AWS RDS, Sheets API)
-│   ├── api/             # FastAPI routers and endpoints
-│   └── main.py          # Application entry point
-├── requirements.txt     # Dependency list
-└── README.md
+│   ├── config.py               # Central configuration module (paths, model names, retrieval parameters)
+│   ├── evaluate.py             # Script to evaluate RAG performance using LLM-as-a-judge
+│   ├── ingest_core.py          # Data ingestion pipeline for core Thai laws (Hugging Face / Krisdika)
+│   ├── ingest_recent.py        # Data ingestion pipeline for recent Thai laws (IAPP 2025 format)
+│   ├── llm_client.py           # Local Ollama client with structured Chain-of-Thought prompting
+│   ├── main.py                 # Interactive console application for Q&A testing
+│   ├── retriever.py            # High-performance Hybrid Retriever (Chroma + PyThaiNLP BM25 + RRF)
+│   └── scratch/
+│       └── download_dataset.py # Script to download evaluation datasets from Hugging Face
+├── requirements.txt            # Python library dependencies
+└── README.md                   # This overview file
 ```
 
 ### Module Contexts (For AI Agents and Developers)
-- [src/agents/](file:///c:/Users/yourh/Desktop/PersonalProject/RAG_Local_Law/src/agents/): Hosts core agent configurations, LLM-based parsing prompts, and RAG retrieval pipelines. This is the main orchestrator for unstructured data processing.
-- [src/room_analyzer/](file:///c:/Users/yourh/Desktop/PersonalProject/RAG_Local_Law/src/room_analyzer/): Houses image feature classifiers and YOLO11 computer vision routines.
-- [src/services/](file:///c:/Users/yourh/Desktop/PersonalProject/RAG_Local_Law/src/services/): Centralizes DB gateways, authentication handshakes, and third-party API configurations (Firestore, AWS RDS, Sheets API).
-- [src/api/](file:///c:/Users/yourh/Desktop/PersonalProject/RAG_Local_Law/src/api/): Structures the REST endpoints, router logic, middleware, and schemas for search interfaces.
-- [src/main.py](file:///c:/Users/yourh/Desktop/PersonalProject/RAG_Local_Law/src/main.py): The root Uvicorn entry point initializing the FastAPI app state, setting up CORS, and registering microservices.
+- [src/config.py](file:///c:/Users/yourh/Desktop/PersonalProject/RAG_Local_Law/src/config.py): Manages paths, vector store collection names (`core_law` & `recent_law`), chunk sizes (`1000` tokens, `200` overlap), and retrieval configurations.
+- [src/ingest_core.py](file:///c:/Users/yourh/Desktop/PersonalProject/RAG_Local_Law/src/ingest_core.py): Standardizes and ingest core Thai legislation from the Krisdika dataset. It extracts hierarchy levels (e.g. `มาตรา` or `ข้อ`), cleans section headers via regex, and uploads them to ChromaDB in batches of `500` to prevent database corruption.
+- [src/ingest_recent.py](file:///c:/Users/yourh/Desktop/PersonalProject/RAG_Local_Law/src/ingest_recent.py): Parses recent legislation documents (from OCR markdown outputs in the `iapp_2025` directory) and indexes them into a separate vector database collection.
+- [src/retriever.py](file:///c:/Users/yourh/Desktop/PersonalProject/RAG_Local_Law/src/retriever.py): Performs dynamic multi-stage hybrid retrieval:
+  1. Combines semantic vector similarity search (dense) and PyThaiNLP-tokenized BM25 (sparse).
+  2. Applies reciprocal rank fusion (RRF) to merge ranks.
+  3. Uses hard metadata title filters (e.g., matching the specific Act in the query) and query expansion templates to filter out irrelevant contexts.
+- [src/llm_client.py](file:///c:/Users/yourh/Desktop/PersonalProject/RAG_Local_Law/src/llm_client.py): Sets up `ChatOllama` using the zero-temperature `llama3.2` model. Employs strict system prompts forcing Chain-of-Thought (ข้อเท็จจริงอ้างอิง -> สรุป: <ใช่/ไม่ใช่/ได้/ไม่ได้>) and returns `"ข้อมูลไม่เพียงพอ"` when contexts do not contain enough facts.
+- [src/evaluate.py](file:///c:/Users/yourh/Desktop/PersonalProject/RAG_Local_Law/src/evaluate.py): An automated benchmark suite. It runs retrieval and generation on test data, utilizes the LLM as a judge to evaluate answer correctness (calculating Accuracy, Precision, Recall, F1, False Positive Rate, and False Negative Rate), and outputs a confusion matrix.
+- [src/main.py](file:///c:/Users/yourh/Desktop/PersonalProject/RAG_Local_Law/src/main.py): A CLI loop allowing manual Q&A interactions with the RAG pipeline.
+- [requirements.txt](file:///c:/Users/yourh/Desktop/PersonalProject/RAG_Local_Law/requirements.txt): Lists all package dependencies with version constraints.
+
+---
+
+## 🌟 Core Features
+
+### 1. True Hybrid Retrieval & Reciprocal Rank Fusion (RRF)
+To counter the vocabulary mismatch issue common in Thai legal scripts, the retriever retrieves candidates using:
+- **Dense Vector Search:** Uses `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` embeddings via ChromaDB.
+- **Sparse BM25 Search:** Utilizes `pythainlp.tokenize.word_tokenize` to ensure morphologically correct word-level lexical matching for Thai words.
+Both result ranks are merged using Reciprocal Rank Fusion (RRF):
+$$\text{Score}(d) = \frac{1}{60 + \text{Rank}_{\text{vector}}(d)} + \frac{1}{60 + \text{Rank}_{\text{BM25}}(d)}$$
+
+### 2. Strict Grounding and Hallucination Control
+The `LLMClient` incorporates system constraints designed to eliminate LLM hallucinations:
+- **No prior knowledge:** The model must rely solely on the provided context block.
+- **Chain of Thought:** Forces the model to state legal references and quotes before making a final conclusion.
+- **Strict Conclusion Format:** Answers must end with `สรุป: ได้`, `สรุป: ไม่ได้`, `สรุป: ใช่`, or `สรุป: ไม่ใช่`.
+- **Fail-safe:** Out-of-context queries return `ข้อมูลไม่เพียงพอ`.
+
+### 3. Comprehensive Metric Evaluations
+The evaluator in [src/evaluate.py](file:///c:/Users/yourh/Desktop/PersonalProject/RAG_Local_Law/src/evaluate.py) parses semantic polarities of answers (Positive, Negative, Other) and outputs:
+- **Accuracy, Precision, Recall, and F1-Score** for the Positive class.
+- **False Positive Rate (FPR):** Measures critical legal risks where the system incorrectly says something is permitted (`ได้`) when it is prohibited.
+- **False Negative Rate (FNR):** Measures instances where valid permissions are incorrectly marked as prohibited or insufficient information.
+
+---
+
+## 🛠️ Tech Stack & Library Choices
+
+| Library / Tool | Role in Project | Rationale |
+| :--- | :--- | :--- |
+| **Python 3.11+** | Core Programming Language | High stability with deep learning/embeddings and LangChain integration. |
+| **langchain & langchain-chroma** | LLM & Database Orchestration | Simplifies retrieval-augmented setups and facilitates seamless database wrappers. |
+| **langchain-ollama** | Local LLM Integration | Interfaces with Ollama's local server running `llama3.2`. |
+| **chromadb** | Vector Database | Fast, lightweight, embeddable local vector database. |
+| **sentence-transformers** | Embedding Generation | Generates high-quality dense vector embeddings using `paraphrase-multilingual-MiniLM-L12-v2`. |
+| **pythainlp** | Thai Word Tokenizer | Critical for splitting Thai sentences without spaces into tokens before feeding them to BM25. |
+| **pandas & pyarrow** | Parquet Data Handling | Efficiently loads and reads Hugging Face dataset files (`.parquet`). |
+| **torch & torchvision** | Backend Computation | PyTorch runtime utilized as the computing backend for Hugging Face embeddings. |
+
+---
+
+## 🔑 Environment Configuration
+The application does not require heavy environment variables for local operation, but you can manage overrides or settings by modifying [src/config.py](file:///c:/Users/yourh/Desktop/PersonalProject/RAG_Local_Law/src/config.py) directly.
+
+If GPU acceleration is required on Windows, ensure that the PyTorch environment is configured correctly. A built-in DLL load fix is automated in `evaluate.py` to prevent multi-threading OpenMP crashes (`KMP_DUPLICATE_LIB_OK=TRUE`).
 
 ---
 
 ## 🚀 Getting Started
 
-Follow these instructions to set up the development environment locally.
-
-### Prerequisites
-- Python 3.11 or higher
-- Docker (optional, for containerized runtimes)
-- Node.js (required for Playwright drivers)
-
-### 1. Clone & Set Up Directory
-Clone the repository and navigate to the root directory:
-```bash
-git clone https://github.com/your-org/yourhome-core-ai.git
-cd yourhome-core-ai
-```
-
-### 2. Create and Activate a Virtual Environment
-Using Python's standard `venv` module:
-
-**On macOS/Linux:**
-```bash
-python3 -m venv venv
-source venv/bin/activate
-```
-
-**On Windows (PowerShell):**
-```powershell
-python -m venv venv
-.\venv\Scripts\Activate.ps1
-```
-
-### 3. Install Dependencies
-Install the required packages, including PyTorch for YOLO11 CV tasks, and set up Playwright browser instances:
+### 1. Install Dependencies
+Ensure you have Python 3.11+ installed. Install project requirements:
 ```bash
 pip install -r requirements.txt
-playwright install chromium
 ```
 
-### 4. Configuration
-Duplicate the environment template and edit with your API keys and databases:
+### 2. Pull and Start the Ollama Model
+Ensure [Ollama](https://ollama.com/) is installed and running, then pull the target LLM:
 ```bash
-cp .env.example .env
+ollama pull llama3.2
 ```
 
-### 5. Launch the Server Locally
-Run the FastAPI application locally using Uvicorn with hot-reloading enabled:
+### 3. Datasets Ingestion
+Place your raw legislation datasets into the `datasets/` folder:
+- Core Laws under `datasets/ocs-krisdika_manual/`
+- Recent Laws under `datasets/iapp_2025/`
+
+Then index the datasets to build the local ChromaDB database:
 ```bash
-uvicorn src.main:app --host 127.0.0.1 --port 8000 --reload
-```
-Once started, you can access the Interactive Swagger documentation at `http://127.0.0.1:8000/docs`.
+# Ingest Core Laws
+python src/ingest_core.py
 
-### 6. Executing Scripts
-- **Scraper / ETL Agent:** `python -m src.agents.etl_ingest`
-- **Vision Inference:** `python -m src.room_analyzer.color_detect`
-- **QA Fuzz Bot:** `python -m src.api.qa_fuzzer`
+# Ingest Recent Laws
+python src/ingest_recent.py
+```
+
+### 4. Run the Q&A Application
+Launch the interactive terminal application to ask legal questions:
+```bash
+python src/main.py
+```
+
+### 5. Run Evaluations
+Run the evaluation suite against the Hugging Face test sets to evaluate system performance:
+```bash
+python src/evaluate.py
+```
